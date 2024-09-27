@@ -8,27 +8,62 @@ from datetime import datetime
 import io
 import os
 import sys
+import streamlit as st
+import joblib
+import sys
 import sklearn
+import os
+import errno
+
+# Try to import FilesConnection, but provide a fallback if it's not available
+try:
+    from st_files_connection import FilesConnection
+    st.success("Successfully imported FilesConnection")
+except ImportError:
+    st.warning("Could not import FilesConnection. S3 connection might not be available.")
+    FilesConnection = None
 
 # Set up AWS credentials from secrets
-os.environ['AWS_ACCESS_KEY_ID'] = st.secrets["AWS_ACCESS_KEY_ID"]
-os.environ['AWS_SECRET_ACCESS_KEY'] = st.secrets["AWS_SECRET_ACCESS_KEY"]
-os.environ['AWS_DEFAULT_REGION'] = st.secrets["AWS_DEFAULT_REGION"]
+os.environ['AWS_ACCESS_KEY_ID'] = st.secrets.get("AWS_ACCESS_KEY_ID", "")
+os.environ['AWS_SECRET_ACCESS_KEY'] = st.secrets.get("AWS_SECRET_ACCESS_KEY", "")
+os.environ['AWS_DEFAULT_REGION'] = st.secrets.get("AWS_DEFAULT_REGION", "")
 
-# Create connection object for S3
-conn = st.connection('s3', type=FilesConnection)
+# Create connection object for S3 if FilesConnection is available
+if FilesConnection:
+    try:
+        conn = st.connection('s3', type=FilesConnection)
+        st.success("S3 connection established")
+    except Exception as e:
+        st.error(f"Failed to establish S3 connection: {str(e)}")
+        conn = None
+else:
+    st.warning("S3 connection is not available due to missing FilesConnection")
+    conn = None
 
-# Load the model from local file
 @st.cache_resource
 def load_model():
     try:
-        with open("calibrated_random_forest_model.joblib", "rb") as file:
+        model_path = "calibrated_random_forest_model.joblib"
+        st.write(f"Attempting to load model from: {os.path.abspath(model_path)}")
+        st.write(f"File exists: {os.path.exists(model_path)}")
+        
+        if os.path.exists(model_path):
+            st.write(f"File permissions: {oct(os.stat(model_path).st_mode)[-3:]}")
+        
+        with open(model_path, "rb") as file:
             model = joblib.load(file)
         st.write(f"Model type: {type(model)}")
         st.write(f"scikit-learn version: {sklearn.__version__}")
         return model
     except FileNotFoundError:
-        st.error("Model file not found. Please check if the file exists in the correct location.")
+        st.error(f"Model file not found at {os.path.abspath(model_path)}. Please check if the file exists in the correct location.")
+    except PermissionError:
+        st.error(f"Permission denied when trying to access the model file. Please check file permissions.")
+    except OSError as e:
+        if e.errno == errno.EACCES:
+            st.error(f"Permission denied: {str(e)}")
+        else:
+            st.error(f"OS error occurred: {str(e)}")
     except Exception as e:
         st.error(f"An error occurred while loading the model: {str(e)}")
         st.write("Python version:", sys.version)
