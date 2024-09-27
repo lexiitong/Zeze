@@ -1,4 +1,5 @@
 import streamlit as st
+from st_files_connection import FilesConnection
 import joblib
 import pandas as pd
 import seaborn as sns
@@ -6,30 +7,27 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import io
 import os
-import s3fs
 
 # Set up AWS credentials from secrets
 os.environ['AWS_ACCESS_KEY_ID'] = st.secrets["AWS_ACCESS_KEY_ID"]
 os.environ['AWS_SECRET_ACCESS_KEY'] = st.secrets["AWS_SECRET_ACCESS_KEY"]
 os.environ['AWS_DEFAULT_REGION'] = st.secrets["AWS_DEFAULT_REGION"]
 
-# Create S3 filesystem
-fs = s3fs.S3FileSystem(anon=False)
+# Create connection object for S3
+conn = st.connection('s3', type=FilesConnection)
 
-# Load the model
+# Load the model from local file
 @st.cache_resource
 def load_model():
-    with fs.open('zezeapp/calibrated_random_forest_model.pkl', 'rb') as f:
-        return joblib.load(f)
+    return joblib.load("calibrated_random_forest_model.pkl")
 
 loaded_model = load_model()
 st.success("Model loaded successfully")
 
-# Load the cleaned dataset
+# Load the cleaned dataset from S3
 @st.cache_data
 def load_data():
-    with fs.open('zezeapp/Felix_cleaned_dataset160824.csv', 'rb') as f:
-        df = pd.read_csv(f)
+    df = conn.read("zezeapp/Felix_cleaned_dataset160824.csv", input_format="csv", ttl=600)
     df = df.drop(['Subject', 'Completed Date/Time', 'Completed Date', 'Completed Time', 'Seasonality'], axis=1)
     df_encoded = pd.get_dummies(df, columns=['Weekday', 'Month', 'Time-span'])
     X = df_encoded.drop(['Answer Status', 'Answered'], axis=1)
