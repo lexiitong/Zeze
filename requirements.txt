@@ -5,4 +5,3 @@ seaborn
 matplotlib
 scikit-learn
 s3fs
-sklearn
