@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import io
 import os
+import sys
+import sklearn
 
 # Set up AWS credentials from secrets
 os.environ['AWS_ACCESS_KEY_ID'] = st.secrets["AWS_ACCESS_KEY_ID"]
