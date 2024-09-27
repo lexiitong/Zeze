@@ -19,14 +19,18 @@ conn = st.connection('s3', type=FilesConnection)
 # Load the model from local file
 @st.cache_resource
 def load_model():
-    with open("calibrated_random_forest_model.pkl", "rb") as file:
-        return joblib.load(file)
+    try:
+        with open("calibrated_random_forest_model.joblib", "rb") as file:
+            return joblib.load(file)
+    except Exception as e:
+        st.error(f"Failed to load model: {str(e)}")
+        raise
 
 try:
     loaded_model = load_model()
     st.success("Model loaded successfully")
 except Exception as e:
-    st.error(f"Failed to load model: {str(e)}")
+    st.error("Failed to load the model. Please check the model file and sklearn version.")
     st.stop()
 
 # Load the cleaned dataset from S3
