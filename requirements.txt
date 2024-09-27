@@ -4,3 +4,5 @@ joblib
 seaborn
 matplotlib
 scikit-learn
+s3fs==2023.6.0
+st-files-connection
