@@ -19,7 +19,7 @@ conn = st.connection('s3', type=FilesConnection)
 # Load the model
 @st.cache_resource
 def load_model():
-    model_data = conn.read("zezeapp/calibrated_random_forest_model.pkl", input_format="binary", ttl=600)
+    model_data = conn.read("zezeapp/calibrated_random_forest_model.pkl", input_format="bytes", ttl=600)
     return joblib.load(io.BytesIO(model_data))
 
 loaded_model = load_model()
