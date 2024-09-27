@@ -5,3 +5,4 @@ seaborn
 matplotlib
 scikit-learn
 s3fs
+st-files-connection
