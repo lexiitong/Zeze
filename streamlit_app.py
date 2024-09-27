@@ -23,18 +23,29 @@ conn = st.connection('s3', type=FilesConnection)
 def load_model():
     try:
         with open("calibrated_random_forest_model.joblib", "rb") as file:
-            return joblib.load(file)
+            model = joblib.load(file)
+        st.write(f"Model type: {type(model)}")
+        st.write(f"scikit-learn version: {sklearn.__version__}")
+        return model
+    except FileNotFoundError:
+        st.error("Model file not found. Please check if the file exists in the correct location.")
     except Exception as e:
-        st.error(f"Failed to load model: {str(e)}")
+        st.error(f"An error occurred while loading the model: {str(e)}")
+        st.write("Python version:", sys.version)
+        st.write("joblib version:", joblib.__version__)
         raise
 
 try:
     loaded_model = load_model()
-    st.success("Model loaded successfully")
+    if loaded_model is not None:
+        st.success("Model loaded successfully")
+    else:
+        st.error("Failed to load the model.")
+        st.stop()
 except Exception as e:
-    st.error("Failed to load the model. Please check the model file and sklearn version.")
+    st.error(f"An unexpected error occurred: {str(e)}")
     st.stop()
-
+    
 # Load the cleaned dataset from S3
 @st.cache_data
 def load_data():
