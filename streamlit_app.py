@@ -44,7 +44,7 @@ else:
 def load_model():
     try:
         # GitHub API URL for the file
-        api_url = "https://api.github.com/repos/lexiitong/Zeze/contents/calibrated_random_forest_model.joblib"
+        api_url = "https://api.github.com/repos/lexiitong/Zeze/contents/calibrated_random_forest_model.pkl"
         
         st.write(f"Attempting to fetch model from GitHub API: {api_url}")
         
