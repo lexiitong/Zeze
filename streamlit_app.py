@@ -44,7 +44,7 @@ else:
 def load_model():
     try:
         # GitHub API URL for the file
-        api_url = "https://api.github.com/repos/lexiitong/Zeze/contents/calibrated_random_forest_model.pkl"
+        api_url = "https://api.github.com/repos/lexiitong/Zeze/contents/calibrated_random_forest_model.joblib"
         
         st.write(f"Attempting to fetch model from GitHub API: {api_url}")
         
@@ -64,7 +64,7 @@ def load_model():
         # Try to determine the file type
         if decoded_content.startswith(b'\x80\x03'):
             st.write("The file appears to be a pickle file (protocol 3 or higher)")
-        elif decoded_content.startswith(b'\x00\x00\x00\x0c\x0d'):
+        elif decoded_content.startswith(b'\x00\x00\x00\x0c'):
             st.write("The file appears to be a joblib file")
         else:
             st.write("Unable to determine file type from header")
@@ -107,14 +107,6 @@ def load_data():
     X = df_encoded.drop(['Answer Status', 'Answered'], axis=1)
     return X
 
-# Load the model
-try:
-    loaded_model = load_model()
-    st.success("Model loaded successfully")
-except Exception as e:
-    st.error(f"Failed to load the model: {str(e)}")
-    st.stop()  # Stop execution if model loading fails
-
 X = load_data()
 X_columns = X.columns
 
@@ -132,19 +124,16 @@ weekday = st.selectbox('Weekday:', weekdays_ordered)
 time_span = st.selectbox('Time-span:', time_spans_ordered)
 
 if st.button("Predict"):
-    try:
-        new_data = {column: 0 for column in X.columns}
-        new_data[f'Month_{month}'] = 1
-        new_data[f'Weekday_{weekday}'] = 1
-        new_data[f'Time-span_{time_span}'] = 1
-        new_data_encoded = pd.DataFrame([new_data])[X_columns]
-        prob = loaded_model.predict_proba(new_data_encoded)[0][1]
-        message = f'Your call has {prob*100:.2f}% chances of being answered.'
-        if prob > 0.30:
-            message += " Go for it, it is higher than usual!"
-        st.success(message)
-    except Exception as e:
-        st.error(f"An error occurred during prediction: {str(e)}")
+    new_data = {column: 0 for column in X.columns}
+    new_data[f'Month_{month}'] = 1
+    new_data[f'Weekday_{weekday}'] = 1
+    new_data[f'Time-span_{time_span}'] = 1
+    new_data_encoded = pd.DataFrame([new_data])[X_columns]
+    prob = loaded_model.predict_proba(new_data_encoded)[0][1]
+    message = f'Your call has {prob*100:.2f}% chances of being answered.'
+    if prob > 0.30:
+        message += " Go for it, it is higher than usual!"
+    st.success(message)
 
 # Show the Heatmap for the Current Month
 def show_current_month_heatmap():
@@ -152,32 +141,26 @@ def show_current_month_heatmap():
     current_month = today.strftime("%B")
     probabilities = []
 
-    try:
-        for weekday in weekdays_ordered:
-            weekday_probs = []
-            for time_span in time_spans_ordered:
-                new_data = {column: 0 for column in X.columns}
-                new_data[f'Month_{current_month}'] = 1
-                new_data[f'Weekday_{weekday}'] = 1
-                new_data[f'Time-span_{time_span}'] = 1
-                new_data_encoded = pd.DataFrame([new_data])[X_columns]
-                prob = loaded_model.predict_proba(new_data_encoded)[0][1]
-                weekday_probs.append(prob)
-            probabilities.append(weekday_probs)
+    for weekday in weekdays_ordered:
+        weekday_probs = []
+        for time_span in time_spans_ordered:
+            new_data = {column: 0 for column in X.columns}
+            new_data[f'Month_{current_month}'] = 1
+            new_data[f'Weekday_{weekday}'] = 1
+            new_data[f'Time-span_{time_span}'] = 1
+            new_data_encoded = pd.DataFrame([new_data])[X_columns]
+            prob = loaded_model.predict_proba(new_data_encoded)[0][1]
+            weekday_probs.append(prob)
+        probabilities.append(weekday_probs)
 
-        prob_df = pd.DataFrame(probabilities, index=weekdays_ordered, columns=time_spans_ordered)
+    prob_df = pd.DataFrame(probabilities, index=weekdays_ordered, columns=time_spans_ordered)
 
-        fig, ax = plt.subplots(figsize=(12, 6))
-        sns.heatmap(prob_df, annot=True, cmap="YlGnBu", fmt=".2f", ax=ax)
-        plt.title(f"Probability of Calls Being Answered in {current_month}")
-        plt.xlabel("Time-span")
-        plt.ylabel("Weekday")
-        return fig
-    except Exception as e:
-        st.error(f"An error occurred while generating the heatmap: {str(e)}")
-        return None
+    fig, ax = plt.subplots(figsize=(12, 6))
+    sns.heatmap(prob_df, annot=True, cmap="YlGnBu", fmt=".2f", ax=ax)
+    plt.title(f"Probability of Calls Being Answered in {current_month}")
+    plt.xlabel("Time-span")
+    plt.ylabel("Weekday")
+    return fig
 
 st.subheader("Heatmap for Current Month")
-heatmap = show_current_month_heatmap()
-if heatmap:
-    st.pyplot(heatmap)
+st.pyplot(show_current_month_heatmap())
