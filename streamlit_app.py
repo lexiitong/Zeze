@@ -46,7 +46,7 @@ else:
 def load_model():
     try:
         # URL of the raw file on GitHub
-        url = "https://github.com/Zeze/zeze/raw/main/calibrated_random_forest_model.joblib"
+        url = "https://github.com/lexiitong/Zeze/blob/main/calibrated_random_forest_model.joblib"
         
         st.write(f"Attempting to download model from: {url}")
         
