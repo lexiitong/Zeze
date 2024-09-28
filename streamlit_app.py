@@ -14,6 +14,8 @@ import sys
 import sklearn
 import os
 import errno
+import requests
+import tempfile
 
 # Try to import FilesConnection, but provide a fallback if it's not available
 try:
@@ -43,32 +45,39 @@ else:
 @st.cache_resource
 def load_model():
     try:
-        # Update the model path to use the root directory
-        model_path = "calibrated_random_forest_model.joblib"
-        st.write(f"Attempting to load model from: {os.path.abspath(model_path)}")
-        st.write(f"File exists: {os.path.exists(model_path)}")
+        # URL of the raw file on GitHub
+        url = "https://github.com/Zeze/zeze/raw/main/calibrated_random_forest_model.joblib"
         
-        if os.path.exists(model_path):
-            st.write(f"File permissions: {oct(os.stat(model_path).st_mode)[-3:]}")
+        st.write(f"Attempting to download model from: {url}")
         
-        with open(model_path, "rb") as file:
-            model = joblib.load(file)
+        # Download the file
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an exception for bad status codes
+        
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            temp_file.write(response.content)
+            temp_file_path = temp_file.name
+        
+        st.write(f"Model downloaded to temporary file: {temp_file_path}")
+        
+        # Load the model from the temporary file
+        model = joblib.load(temp_file_path)
+        
         st.write(f"Model type: {type(model)}")
         st.write(f"scikit-learn version: {sklearn.__version__}")
+        
+        # Remove the temporary file
+        os.unlink(temp_file_path)
+        
         return model
-    except FileNotFoundError:
-        st.error(f"Model file not found at {os.path.abspath(model_path)}. Please check if the file exists in the correct location.")
-    except PermissionError:
-        st.error(f"Permission denied when trying to access the model file. Please check file permissions.")
-    except OSError as e:
-        if e.errno == errno.EACCES:
-            st.error(f"Permission denied: {str(e)}")
-        else:
-            st.error(f"OS error occurred: {str(e)}")
+    except requests.RequestException as e:
+        st.error(f"Failed to download the model: {str(e)}")
     except Exception as e:
         st.error(f"An error occurred while loading the model: {str(e)}")
         st.write("Python version:", sys.version)
         st.write("joblib version:", joblib.__version__)
+        st.write("scikit-learn version:", sklearn.__version__)
         raise
 
 try:
