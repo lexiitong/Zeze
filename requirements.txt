@@ -1,9 +1,9 @@
-streamlit
 pandas
 joblib
 seaborn
 matplotlib
-scikit-learn
 s3fs
 st-files-connection
-requests
+streamlit==1.38.0
+scikit-learn==1.5.2
+requests==2.31.0
