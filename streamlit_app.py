@@ -64,7 +64,7 @@ def load_model():
         # Try to determine the file type
         if decoded_content.startswith(b'\x80\x03'):
             st.write("The file appears to be a pickle file (protocol 3 or higher)")
-        elif decoded_content.startswith(b'\x00\x00\x00\x0c'):
+        elif decoded_content.startswith(b'\x00\x00\x00\x0c\x0d'):
             st.write("The file appears to be a joblib file")
         else:
             st.write("Unable to determine file type from header")
