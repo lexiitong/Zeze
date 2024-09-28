@@ -43,6 +43,7 @@ else:
 @st.cache_resource
 def load_model():
     try:
+        # Update the model path to use the root directory
         model_path = "calibrated_random_forest_model.joblib"
         st.write(f"Attempting to load model from: {os.path.abspath(model_path)}")
         st.write(f"File exists: {os.path.exists(model_path)}")
