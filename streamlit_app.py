@@ -44,7 +44,7 @@ else:
 def load_model():
     try:
         # GitHub API URL for the file
-        api_url = "https://api.github.com/repos/lexiitong/Zeze/contents/calibrated_random_forest_model.pkl"
+        api_url = "https://api.github.com/repos/lexiitong/Zeze/contents/calibrated_random_forest_model.joblib"
         
         st.write(f"Attempting to fetch model from GitHub API: {api_url}")
         
@@ -58,9 +58,32 @@ def load_model():
         
         st.write("Model content fetched successfully")
         
-        # Load the model using pickle
-        model = pickle.loads(decoded_content)
-        st.write("Model loaded successfully with pickle")
+        # Inspect the first few bytes of the content
+        st.write(f"First 20 bytes of content: {decoded_content[:20]}")
+        
+        # Try to determine the file type
+        if decoded_content.startswith(b'\x80\x03'):
+            st.write("The file appears to be a pickle file (protocol 3 or higher)")
+        elif decoded_content.startswith(b'\x00\x00\x00\x0c'):
+            st.write("The file appears to be a joblib file")
+        else:
+            st.write("Unable to determine file type from header")
+        
+        # Attempt to load with pickle
+        try:
+            model = pickle.loads(decoded_content)
+            st.write("Model loaded successfully with pickle")
+        except Exception as pickle_error:
+            st.write(f"Pickle loading failed: {str(pickle_error)}")
+            
+            # If pickle fails, try joblib
+            import joblib
+            try:
+                model = joblib.load(io.BytesIO(decoded_content))
+                st.write("Model loaded successfully with joblib")
+            except Exception as joblib_error:
+                st.write(f"Joblib loading failed: {str(joblib_error)}")
+                raise Exception("Failed to load model with both pickle and joblib")
         
         st.write(f"Model type: {type(model)}")
         st.write(f"Model attributes: {dir(model)}")
@@ -74,16 +97,6 @@ def load_model():
         st.text(traceback.format_exc())
         raise
         
-try:
-    loaded_model = load_model()
-    if loaded_model is not None:
-        st.success("Model loaded successfully")
-    else:
-        st.error("Failed to load the model.")
-        st.stop()
-except Exception as e:
-    st.error(f"An unexpected error occurred: {str(e)}")
-    st.stop()
     
 # Load the cleaned dataset from S3
 @st.cache_data
