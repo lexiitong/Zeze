@@ -44,20 +44,17 @@ else:
 def load_model():
     try:
         # GitHub API URL for the file
+        api_url = "https://api.github.com/repos/lexiitong/Zeze/contents/calibrated_random_forest_model.pkl"
         api_url = "https://api.github.com/repos/lexiitong/Zeze/contents/calibrated_random_forest_model.joblib"
-        
+
         st.write(f"Attempting to fetch model from GitHub API: {api_url}")
-        
-        # Fetch file content using GitHub API
-        response = requests.get(api_url)
-        response.raise_for_status()
-        file_content = response.json()["content"]
-        
-        # Decode the base64 content
-        decoded_content = base64.b64decode(file_content)
-        
+
+
         st.write("Model content fetched successfully")
-        
+
+        # Load the model using pickle
+        model = pickle.loads(decoded_content)
+        st.write("Model loaded successfully with pickle")
         # Inspect the first few bytes of the content
         st.write(f"First 20 bytes of content: {decoded_content[:20]}")
         
@@ -84,16 +81,9 @@ def load_model():
             except Exception as joblib_error:
                 st.write(f"Joblib loading failed: {str(joblib_error)}")
                 raise Exception("Failed to load model with both pickle and joblib")
-        
+
         st.write(f"Model type: {type(model)}")
         st.write(f"Model attributes: {dir(model)}")
-        
-        return model
-    except requests.RequestException as e:
-        st.error(f"Failed to fetch the model: {str(e)}")
-    except Exception as e:
-        st.error(f"An error occurred while loading the model: {str(e)}")
-        st.write("Full error traceback:")
         st.text(traceback.format_exc())
         raise
 
@@ -101,32 +91,13 @@ try:
     loaded_model = load_model()
     if loaded_model is not None:
         st.success("Model loaded successfully")
-        st.write(f"Model type: {type(loaded_model)}")
-        st.write(f"Model attributes: {dir(loaded_model)}")
-        
-        # Check if the model has the predict_proba method
-        if hasattr(loaded_model, 'predict_proba'):
-            st.write("Model has predict_proba method")
-        else:
-            st.error("Model does not have predict_proba method")
-            
-        # If it's a pipeline or ensemble, check its steps or estimators
-        if hasattr(loaded_model, 'steps'):
-            st.write("Model is a Pipeline. Steps:")
-            for step_name, step_estimator in loaded_model.steps:
-                st.write(f"- {step_name}: {type(step_estimator)}")
-        elif hasattr(loaded_model, 'estimators_'):
-            st.write("Model is an Ensemble. Estimators:")
-            for i, estimator in enumerate(loaded_model.estimators_):
-                st.write(f"- Estimator {i}: {type(estimator)}")
     else:
         st.error("Failed to load the model.")
         st.stop()
 except Exception as e:
     st.error(f"An unexpected error occurred: {str(e)}")
     st.stop()
-    
-    
+
 # Load the cleaned dataset from S3
 @st.cache_data
 def load_data():
@@ -158,23 +129,11 @@ if st.button("Predict"):
     new_data[f'Weekday_{weekday}'] = 1
     new_data[f'Time-span_{time_span}'] = 1
     new_data_encoded = pd.DataFrame([new_data])[X_columns]
-    
-    st.write("Input data shape:", new_data_encoded.shape)
-    st.write("Input data columns:", new_data_encoded.columns.tolist())
-    
-    try:
-        if hasattr(loaded_model, 'predict_proba'):
-            prob = loaded_model.predict_proba(new_data_encoded)[0][1]
-            message = f'Your call has {prob*100:.2f}% chances of being answered.'
-            if prob > 0.30:
-                message += " Go for it, it is higher than usual!"
-            st.success(message)
-        else:
-            st.error("The loaded model doesn't have a predict_proba method. Please check the model type and structure.")
-    except Exception as e:
-        st.error(f"Error during prediction: {str(e)}")
-        st.write("Full error traceback:")
-        st.text(traceback.format_exc())
+    prob = loaded_model.predict_proba(new_data_encoded)[0][1]
+    message = f'Your call has {prob*100:.2f}% chances of being answered.'
+    if prob > 0.30:
+        message += " Go for it, it is higher than usual!"
+    st.success(message)
 
 # Show the Heatmap for the Current Month
 def show_current_month_heatmap():
@@ -204,4 +163,3 @@ def show_current_month_heatmap():
     return fig
 
 st.subheader("Heatmap for Current Month")
-st.pyplot(show_current_month_heatmap())
