@@ -44,17 +44,20 @@ else:
 def load_model():
     try:
         # GitHub API URL for the file
-        api_url = "https://api.github.com/repos/lexiitong/Zeze/contents/calibrated_random_forest_model.pkl"
         api_url = "https://api.github.com/repos/lexiitong/Zeze/contents/calibrated_random_forest_model.joblib"
-
+        
         st.write(f"Attempting to fetch model from GitHub API: {api_url}")
-
-
+        
+        # Fetch file content using GitHub API
+        response = requests.get(api_url)
+        response.raise_for_status()
+        file_content = response.json()["content"]
+        
+        # Decode the base64 content
+        decoded_content = base64.b64decode(file_content)
+        
         st.write("Model content fetched successfully")
-
-        # Load the model using pickle
-        model = pickle.loads(decoded_content)
-        st.write("Model loaded successfully with pickle")
+        
         # Inspect the first few bytes of the content
         st.write(f"First 20 bytes of content: {decoded_content[:20]}")
         
@@ -81,23 +84,20 @@ def load_model():
             except Exception as joblib_error:
                 st.write(f"Joblib loading failed: {str(joblib_error)}")
                 raise Exception("Failed to load model with both pickle and joblib")
-
+        
         st.write(f"Model type: {type(model)}")
         st.write(f"Model attributes: {dir(model)}")
+        
+        return model
+    except requests.RequestException as e:
+        st.error(f"Failed to fetch the model: {str(e)}")
+    except Exception as e:
+        st.error(f"An error occurred while loading the model: {str(e)}")
+        st.write("Full error traceback:")
         st.text(traceback.format_exc())
         raise
-
-try:
-    loaded_model = load_model()
-    if loaded_model is not None:
-        st.success("Model loaded successfully")
-    else:
-        st.error("Failed to load the model.")
-        st.stop()
-except Exception as e:
-    st.error(f"An unexpected error occurred: {str(e)}")
-    st.stop()
-
+        
+    
 # Load the cleaned dataset from S3
 @st.cache_data
 def load_data():
@@ -163,3 +163,4 @@ def show_current_month_heatmap():
     return fig
 
 st.subheader("Heatmap for Current Month")
+st.pyplot(show_current_month_heatmap())
