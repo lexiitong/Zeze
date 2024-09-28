@@ -6,13 +6,14 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import io
 import os
-import joblib
 import sys
 import sklearn
 import errno
 import requests
 import tempfile
 import base64
+import pickle
+import traceback
 
 # Try to import FilesConnection, but provide a fallback if it's not available
 try:
@@ -57,22 +58,20 @@ def load_model():
         
         st.write("Model content fetched successfully")
         
-        # Load the model directly from the decoded content
-        model = joblib.load(io.BytesIO(decoded_content))
+        # Load the model using pickle
+        model = pickle.loads(decoded_content)
+        st.write("Model loaded successfully with pickle")
         
         st.write(f"Model type: {type(model)}")
-        st.write(f"scikit-learn version: {sklearn.__version__}")
+        st.write(f"Model attributes: {dir(model)}")
         
         return model
     except requests.RequestException as e:
         st.error(f"Failed to fetch the model: {str(e)}")
-    except ValueError as e:
-        st.error(f"Error decoding model content: {str(e)}")
     except Exception as e:
         st.error(f"An error occurred while loading the model: {str(e)}")
-        st.write("Python version:", sys.version)
-        st.write("joblib version:", joblib.__version__)
-        st.write("scikit-learn version:", sklearn.__version__)
+        st.write("Full error traceback:")
+        st.text(traceback.format_exc())
         raise
         
 try:
