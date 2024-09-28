@@ -96,7 +96,7 @@ def load_model():
         st.write("Full error traceback:")
         st.text(traceback.format_exc())
         raise
-        
+
     
 # Load the cleaned dataset from S3
 @st.cache_data
@@ -116,6 +116,15 @@ months_ordered = ['January', 'February', 'March', 'April', 'May', 'June',
 weekdays_ordered = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 time_spans_ordered = ['Early morning', 'Morning', 'Mid-day', 'Early afternoon', 'Afternoon', 'Late afternoon']
 
+# Load the model
+try:
+    loaded_model = load_model()
+    st.success("Model loaded successfully")
+except Exception as e:
+    st.error(f"Failed to load the model: {str(e)}")
+    st.stop()  # Stop execution if model loading fails
+
+
 # Create an Interactive Form
 st.title("Call Outcome Predictor")
 
@@ -124,16 +133,19 @@ weekday = st.selectbox('Weekday:', weekdays_ordered)
 time_span = st.selectbox('Time-span:', time_spans_ordered)
 
 if st.button("Predict"):
-    new_data = {column: 0 for column in X.columns}
-    new_data[f'Month_{month}'] = 1
-    new_data[f'Weekday_{weekday}'] = 1
-    new_data[f'Time-span_{time_span}'] = 1
-    new_data_encoded = pd.DataFrame([new_data])[X_columns]
-    prob = loaded_model.predict_proba(new_data_encoded)[0][1]
-    message = f'Your call has {prob*100:.2f}% chances of being answered.'
-    if prob > 0.30:
-        message += " Go for it, it is higher than usual!"
-    st.success(message)
+    try:
+        new_data = {column: 0 for column in X.columns}
+        new_data[f'Month_{month}'] = 1
+        new_data[f'Weekday_{weekday}'] = 1
+        new_data[f'Time-span_{time_span}'] = 1
+        new_data_encoded = pd.DataFrame([new_data])[X_columns]
+        prob = loaded_model.predict_proba(new_data_encoded)[0][1]
+        message = f'Your call has {prob*100:.2f}% chances of being answered.'
+        if prob > 0.30:
+            message += " Go for it, it is higher than usual!"
+        st.success(message)
+    except Exception as e:
+        st.error(f"An error occurred during prediction: {str(e)}")
 
 # Show the Heatmap for the Current Month
 def show_current_month_heatmap():
@@ -141,26 +153,32 @@ def show_current_month_heatmap():
     current_month = today.strftime("%B")
     probabilities = []
 
-    for weekday in weekdays_ordered:
-        weekday_probs = []
-        for time_span in time_spans_ordered:
-            new_data = {column: 0 for column in X.columns}
-            new_data[f'Month_{current_month}'] = 1
-            new_data[f'Weekday_{weekday}'] = 1
-            new_data[f'Time-span_{time_span}'] = 1
-            new_data_encoded = pd.DataFrame([new_data])[X_columns]
-            prob = loaded_model.predict_proba(new_data_encoded)[0][1]
-            weekday_probs.append(prob)
-        probabilities.append(weekday_probs)
+    try:
+        for weekday in weekdays_ordered:
+            weekday_probs = []
+            for time_span in time_spans_ordered:
+                new_data = {column: 0 for column in X.columns}
+                new_data[f'Month_{current_month}'] = 1
+                new_data[f'Weekday_{weekday}'] = 1
+                new_data[f'Time-span_{time_span}'] = 1
+                new_data_encoded = pd.DataFrame([new_data])[X_columns]
+                prob = loaded_model.predict_proba(new_data_encoded)[0][1]
+                weekday_probs.append(prob)
+            probabilities.append(weekday_probs)
 
-    prob_df = pd.DataFrame(probabilities, index=weekdays_ordered, columns=time_spans_ordered)
+        prob_df = pd.DataFrame(probabilities, index=weekdays_ordered, columns=time_spans_ordered)
 
-    fig, ax = plt.subplots(figsize=(12, 6))
-    sns.heatmap(prob_df, annot=True, cmap="YlGnBu", fmt=".2f", ax=ax)
-    plt.title(f"Probability of Calls Being Answered in {current_month}")
-    plt.xlabel("Time-span")
-    plt.ylabel("Weekday")
-    return fig
+        fig, ax = plt.subplots(figsize=(12, 6))
+        sns.heatmap(prob_df, annot=True, cmap="YlGnBu", fmt=".2f", ax=ax)
+        plt.title(f"Probability of Calls Being Answered in {current_month}")
+        plt.xlabel("Time-span")
+        plt.ylabel("Weekday")
+        return fig
+    except Exception as e:
+        st.error(f"An error occurred while generating the heatmap: {str(e)}")
+        return None
 
 st.subheader("Heatmap for Current Month")
-st.pyplot(show_current_month_heatmap())
+heatmap = show_current_month_heatmap()
+if heatmap:
+    st.pyplot(heatmap)
