@@ -7,3 +7,4 @@ st-files-connection
 streamlit==1.38.0
 scikit-learn==1.5.2
 requests==2.31.0
+boto3
