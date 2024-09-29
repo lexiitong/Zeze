@@ -1,27 +1,21 @@
 import streamlit as st
-from st_files_connection import FilesConnection
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-from datetime import datetime
-import io
+import numpy as np
+import joblib
 import os
-import sys
-import sklearn
-import errno
-import requests
-import tempfile
-import base64
-import pickle
-import traceback
+from datetime import datetime
+import boto3
+from io import StringIO
 
-# Try to import FilesConnection, but provide a fallback if it's not available
+# Try to import FilesConnection
 try:
+    from streamlit_javascript import st_javascript
     from st_files_connection import FilesConnection
-    st.success("Successfully imported FilesConnection")
 except ImportError:
-    st.warning("Could not import FilesConnection. S3 connection might not be available.")
     FilesConnection = None
+
+# Set up page config
+st.set_page_config(page_title="Prospect Call Time Predictor", layout="wide")
 
 # Set up AWS credentials from secrets
 os.environ['AWS_ACCESS_KEY_ID'] = st.secrets.get("AWS_ACCESS_KEY_ID", "")
@@ -40,145 +34,89 @@ else:
     st.warning("S3 connection is not available due to missing FilesConnection")
     conn = None
 
-@st.cache_resource
-def load_model():
-    try:
-        # GitHub API URL for the file
-        api_url = "https://api.github.com/repos/lexiitong/Zeze/contents/calibrated_random_forest_model.joblib"
-        
-        st.write(f"Attempting to fetch model from GitHub API: {api_url}")
-        
-        # Fetch file content using GitHub API
-        response = requests.get(api_url)
-        response.raise_for_status()
-        file_content = response.json()["content"]
-        
-        # Decode the base64 content
-        decoded_content = base64.b64decode(file_content)
-        
-        st.write("Model content fetched successfully")
-        
-        # Inspect the first few bytes of the content
-        st.write(f"First 20 bytes of content: {decoded_content[:20]}")
-        
-        # Try to determine the file type
-        if decoded_content.startswith(b'\x80\x03'):
-            st.write("The file appears to be a pickle file (protocol 3 or higher)")
-        elif decoded_content.startswith(b'\x00\x00\x00\x0c'):
-            st.write("The file appears to be a joblib file")
-        else:
-            st.write("Unable to determine file type from header")
-        
-        # Attempt to load with pickle
-        try:
-            model = pickle.loads(decoded_content)
-            st.write("Model loaded successfully with pickle")
-        except Exception as pickle_error:
-            st.write(f"Pickle loading failed: {str(pickle_error)}")
-            
-            # If pickle fails, try joblib
-            import joblib
-            try:
-                model = joblib.load(io.BytesIO(decoded_content))
-                st.write("Model loaded successfully with joblib")
-            except Exception as joblib_error:
-                st.write(f"Joblib loading failed: {str(joblib_error)}")
-                raise Exception("Failed to load model with both pickle and joblib")
-        
-        st.write(f"Model type: {type(model)}")
-        st.write(f"Model attributes: {dir(model)}")
-        
-        return model
-    except requests.RequestException as e:
-        st.error(f"Failed to fetch the model: {str(e)}")
-    except Exception as e:
-        st.error(f"An error occurred while loading the model: {str(e)}")
-        st.write("Full error traceback:")
-        st.text(traceback.format_exc())
-        raise
-
-    
-# Load the cleaned dataset from S3
-@st.cache_data
-def load_data():
-    df = conn.read("zezeapp/Felix_cleaned_dataset160824.csv", input_format="csv", ttl=600)
-    df = df.drop(['Subject', 'Completed Date/Time', 'Completed Date', 'Completed Time', 'Seasonality'], axis=1)
-    df_encoded = pd.get_dummies(df, columns=['Weekday', 'Month', 'Time-span'])
-    X = df_encoded.drop(['Answer Status', 'Answered'], axis=1)
-    return X
-
-X = load_data()
-X_columns = X.columns
-
-# Define ordered options for dropdowns
+# Define ordered lists for dropdown menus
 months_ordered = ['January', 'February', 'March', 'April', 'May', 'June',
                   'July', 'August', 'September', 'October', 'November', 'December']
 weekdays_ordered = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 time_spans_ordered = ['Early morning', 'Morning', 'Mid-day', 'Early afternoon', 'Afternoon', 'Late afternoon']
 
 # Load the model
-try:
-    loaded_model = load_model()
-    st.success("Model loaded successfully")
-except Exception as e:
-    st.error(f"Failed to load the model: {str(e)}")
-    st.stop()  # Stop execution if model loading fails
+@st.cache_resource
+def load_model():
+    return joblib.load('calibrated_random_forest_model.joblib')
 
+model = load_model()
 
-# Create an Interactive Form
-st.title("Call Outcome Predictor")
-
-month = st.selectbox('Month:', months_ordered)
-weekday = st.selectbox('Weekday:', weekdays_ordered)
-time_span = st.selectbox('Time-span:', time_spans_ordered)
-
-if st.button("Predict"):
-    try:
-        new_data = {column: 0 for column in X.columns}
-        new_data[f'Month_{month}'] = 1
-        new_data[f'Weekday_{weekday}'] = 1
-        new_data[f'Time-span_{time_span}'] = 1
-        new_data_encoded = pd.DataFrame([new_data])[X_columns]
-        prob = loaded_model.predict_proba(new_data_encoded)[0][1]
-        message = f'Your call has {prob*100:.2f}% chances of being answered.'
-        if prob > 0.30:
-            message += " Go for it, it is higher than usual!"
-        st.success(message)
-    except Exception as e:
-        st.error(f"An error occurred during prediction: {str(e)}")
-
-# Show the Heatmap for the Current Month
-def show_current_month_heatmap():
-    today = datetime.today()
-    current_month = today.strftime("%B")
-    probabilities = []
-
-    try:
-        for weekday in weekdays_ordered:
-            weekday_probs = []
-            for time_span in time_spans_ordered:
-                new_data = {column: 0 for column in X.columns}
-                new_data[f'Month_{current_month}'] = 1
-                new_data[f'Weekday_{weekday}'] = 1
-                new_data[f'Time-span_{time_span}'] = 1
-                new_data_encoded = pd.DataFrame([new_data])[X_columns]
-                prob = loaded_model.predict_proba(new_data_encoded)[0][1]
-                weekday_probs.append(prob)
-            probabilities.append(weekday_probs)
-
-        prob_df = pd.DataFrame(probabilities, index=weekdays_ordered, columns=time_spans_ordered)
-
-        fig, ax = plt.subplots(figsize=(12, 6))
-        sns.heatmap(prob_df, annot=True, cmap="YlGnBu", fmt=".2f", ax=ax)
-        plt.title(f"Probability of Calls Being Answered in {current_month}")
-        plt.xlabel("Time-span")
-        plt.ylabel("Weekday")
-        return fig
-    except Exception as e:
-        st.error(f"An error occurred while generating the heatmap: {str(e)}")
+# Function to load data from S3
+@st.cache_data
+def load_data_from_s3(bucket_name, file_key):
+    if conn:
+        try:
+            df = conn.read(f"s3://{bucket_name}/{file_key}", input_format="csv", ttl=600)
+            return df
+        except Exception as e:
+            st.error(f"Failed to load data from S3: {str(e)}")
+            return None
+    else:
+        st.error("S3 connection is not available")
         return None
 
-st.subheader("Heatmap for Current Month")
-heatmap = show_current_month_heatmap()
-if heatmap:
-    st.pyplot(heatmap)
+# Main app
+def main():
+    st.title("Prospect Call Time Predictor")
+
+    # User input
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        month = st.selectbox("Select Month", months_ordered)
+    with col2:
+        weekday = st.selectbox("Select Weekday", weekdays_ordered)
+    with col3:
+        time_span = st.selectbox("Select Time Span", time_spans_ordered)
+
+    if st.button("Predict Best Call Time"):
+        # Load confidential dataset from S3
+        df = load_data_from_s3('your-bucket-name', 'path/to/your/confidential_dataset.csv')
+        
+        if df is not None:
+            # Prepare input data
+            input_data = pd.DataFrame({
+                'Month': [month],
+                'Weekday': [weekday],
+                'TimeSpan': [time_span]
+            })
+
+            # One-hot encode the input data
+            input_encoded = pd.get_dummies(input_data, columns=['Month', 'Weekday', 'TimeSpan'])
+
+            # Ensure all columns from training are present
+            for col in model.feature_names_in_:
+                if col not in input_encoded.columns:
+                    input_encoded[col] = 0
+
+            # Reorder columns to match the training data
+            input_encoded = input_encoded[model.feature_names_in_]
+
+            # Make prediction
+            prediction = model.predict_proba(input_encoded)[0]
+
+            # Display results
+            st.subheader("Prediction Results")
+            result_df = pd.DataFrame({
+                'Time Span': time_spans_ordered,
+                'Probability': prediction
+            })
+            result_df = result_df.sort_values('Probability', ascending=False)
+
+            st.bar_chart(result_df.set_index('Time Span'))
+            
+            best_time = result_df.iloc[0]['Time Span']
+            best_prob = result_df.iloc[0]['Probability']
+            
+            st.success(f"The best time to call is during the {best_time} with a probability of {best_prob:.2f}")
+        else:
+            st.error("Failed to load data. Please try again later.")
+
+if __name__ == "__main__":
+    main()
