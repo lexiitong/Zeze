@@ -52,7 +52,7 @@ model = load_model()
 def load_data_from_s3(bucket_name, file_key):
     if conn:
         try:
-            df = conn.read(f"s3://{bucket_name}/{file_key}", input_format="csv", ttl=600)
+            df = conn.read(f"s3://zeze/Felix_cleaned_dataset160824.csv", input_format="csv", ttl=600)
             return df
         except Exception as e:
             st.error(f"Failed to load data from S3: {str(e)}")
@@ -77,7 +77,7 @@ def main():
 
     if st.button("Predict Best Call Time"):
         # Load confidential dataset from S3
-        df = load_data_from_s3('your-bucket-name', 'path/to/your/confidential_dataset.csv')
+        df = load_data_from_s3('zeze', 's3://zeze/Felix_cleaned_dataset160824.csv')
         
         if df is not None:
             # Prepare input data
